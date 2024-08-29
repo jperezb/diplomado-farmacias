@@ -2,6 +2,7 @@ import mimetypes
 import os
 import json
 from typing import List
+from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 from langchain_community.document_loaders import TextLoader
@@ -15,7 +16,8 @@ from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from pydantic import BaseModel, Field
 from app.utils.minsal import obtener_datos_locales_turnos
 from app.utils.rag import get_documents, get_retriever
-from app.utils.models import generate_response
+from app.utils.models import generate_response_farmacias
+from app.utils.locations import get_coordinates, farmacias_cercanas
 
 # Crear un router
 router = APIRouter()
@@ -29,20 +31,48 @@ QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME")
 AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 MODEL_OPENAI = os.getenv("MODEL_OPENAI")
+MODEL_OPENAI_BEST = os.getenv("MODEL_OPENAI_BEST")
 
 class QueryRequest(BaseModel):
     input: str
 
-@router.post("/locales-turnos/")
-async def obtener_locales_turnos(question: QueryRequest):
+@router.post("/farmacias-turno/")
+async def get_farmacias_turno(question: QueryRequest):
     """API endpoint para obtener los datos de locales de turnos."""
     try:
-        datos = obtener_datos_locales_turnos()
+        coordinates = get_coordinates(question.input)
+
+        # Obtener la fecha formateada
+        fecha_formateada = datetime.now().strftime("%Y-%m-%d")
+        archivo_nombre = f"{fecha_formateada}.txt"
+
+        # Verificar si el archivo ya existe
+        if os.path.exists(archivo_nombre):
+            print(f"El archivo {archivo_nombre} ya existe. No se llamará a obtener_datos_locales_turnos.")
+            # Si el archivo existe, cargar los datos desde el archivo
+            with open(archivo_nombre, "r", encoding='utf-8') as file:
+                datos_json = file.read()
+            datos = json.loads(datos_json)
+        else:
+            # Si el archivo no existe, obtener los datos y guardarlos en el archivo
+            datos = obtener_datos_locales_turnos()
+
+            # Convertir el objeto a una cadena JSON
+            datos_json = json.dumps(datos, ensure_ascii=False, indent=4)
+
+            # Guardar los datos en un archivo con el nombre basado en la fecha
+            with open(archivo_nombre, "w", encoding='utf-8') as file:
+                file.write(datos_json)
+
         documents = get_documents(datos)
         # retriever = get_retriever(documents)
 
-        # Generate Response
-        response = generate_response(question.input, documents, MODEL_OPENAI)
+        # # Generar respuesta
+        # response = generate_response_farmacias(coordinates, documents, MODEL_OPENAI_BEST)
+        
+        # Obtiene las farmacias más cercanas usando algoritmos
+        response = farmacias_cercanas(coordinates, datos_json, 3)
+        print(response)
 
         return JSONResponse(content=response)
     except HTTPException as e:
@@ -111,12 +141,13 @@ async def query(request: QueryRequest):
     retriever = qdrant.as_retriever()
 
     system_prompt = (
-        "You are an assistant for question-answering tasks. "
+        "You are an assistant for question-answering tasks about chilean drugstores. "
         "Use only the following pieces of retrieved context to answer "
         "the question. If the answer is not in the documents, say that you "
         "don't know using different sentences in friendly mode. Use three sentences maximum and keep the "
         "answer concise. "
-        "Add the document references in your answer "
+        "Add the document references in your answer."
+        "The user lives in Chile."
         "\n\n"
         "{context}"
     )

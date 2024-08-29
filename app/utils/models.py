@@ -1,24 +1,26 @@
 import os
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel
+from langchain_core.output_parsers import JsonOutputParser
+from typing import List
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def generate_response(question, docs, model):
-    """
-    Generate a response for a given question using retrieved context.
+def generate_response_farmacias(coordinates, docs, model):
 
-    This function creates a prompt for a question-answering task, invokes the RAG chain to get the response,
-    and measures the time taken to generate the response.
+    # Define the structure for the answer
+    class Coordinates(BaseModel):
+        latitude: float
+        longitude: float
 
-    Parameters:
-    question (str): The question to be answered.
-    context (str): The context to be used for answering the question.
+    class Pharmacies(BaseModel):
+        name: str
+        address: str = None  # Hacer la dirección opcional para "Tu Ubicación"
+        coordinates: Coordinates
 
-    Returns:
-    str: The generated response.
-    """
+    class AnswerParser(BaseModel):
+        pharmacies: List[Pharmacies]
 
     # Create the prompt template
     prompt = ChatPromptTemplate.from_template("""You are an assistant for question-answering tasks.
@@ -27,27 +29,46 @@ def generate_response(question, docs, model):
     Use three sentences maximum and keep the answer concise.
 
     # Instructions
-    - Answer in spanish
+    - Answer in Spanish.
+    - Use local chilean time.
+    - Provide a JSON list of the nearest and open pharmacies with their names, addresses, and coordinates.
+    - Order the pharmacies from the closest to the farthest based on their proximity to the given coordinates.
+    - Use 'local_lat' as the latitude and 'local_lng' as the longitude when determining proximity.
 
-    Question: {question}
 
-    Context: {context}
+    Question: 
+    Get the 3 nearest places to these coordinates: 
+        lat: {lat}
+        lng: {lng}
+
+    Context: 
+    {context}
 
     Answer:""")
+
+    # Convert coordinates to float and split
+    lat, lng = coordinates
 
     # Initialize the language model with the specified parameters
     model = ChatOpenAI(model=model, temperature=0.1, api_key=OPENAI_API_KEY)
 
+    parser = JsonOutputParser(pydantic_object=AnswerParser)
+
     # Create the RAG chain
-    rag_chain = prompt | model | StrOutputParser()
+    rag_chain = prompt | model | parser
 
     # Create the context
-    context = ""
-    for doc in docs:
-        print(doc)  # Imprime el contenido de cada documento
-        context += doc + " "  # Agrega el contenido de cada documento al contexto
+    context = " ".join(docs)  # Combina todos los documentos en un solo contexto
 
     # Generate the response
-    response = rag_chain.invoke({'question': question, 'context': context})
+    response = rag_chain.invoke({'lat': lat, 'lng': lng, 'context': context})
 
-    return response
+    final_response = {
+        "user_location": {
+            "latitud": lat,
+            "longitud": lng
+        },
+        "farmacias": response  # Assuming response is the list of farmacias
+    }
+
+    return final_response
