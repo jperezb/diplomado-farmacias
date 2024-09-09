@@ -1,16 +1,15 @@
 import mimetypes
 import os
 import json
+import shutil
 from typing import List
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
-from langchain_community.document_loaders import TextLoader
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.output_parsers.openai_tools import PydanticToolsParser
-from langchain_text_splitters import CharacterTextSplitter
 from langchain.chains import create_retrieval_chain
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from pydantic import BaseModel, Field
@@ -44,7 +43,8 @@ async def get_farmacias_turno(question: QueryRequest):
 
         # Obtener la fecha formateada
         fecha_formateada = datetime.now().strftime("%Y-%m-%d")
-        archivo_nombre = f"{fecha_formateada}.txt"
+        directorio = "files/"
+        archivo_nombre = f"{directorio}{fecha_formateada}.txt"
 
         # Verificar si el archivo ya existe
         if os.path.exists(archivo_nombre):
@@ -54,6 +54,11 @@ async def get_farmacias_turno(question: QueryRequest):
                 datos_json = file.read()
             datos = json.loads(datos_json)
         else:
+            # Vaciar el directorio eliminándolo y recreándolo
+            if os.path.exists(directorio):
+                shutil.rmtree(directorio)
+            os.makedirs(directorio)
+            
             # Si el archivo no existe, obtener los datos y guardarlos en el archivo
             datos = obtener_datos_locales_turnos()
 
