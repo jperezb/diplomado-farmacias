@@ -208,6 +208,7 @@ def get_farmacias_turno(question: QueryRequest):
 @tool
 def get_address_info(address01: str) -> Optional[HumanMessage]:
     """Obtiene información sobre la dirección que se consulta explícitamente."""
+
     try:
         if not address01.strip():
             raise ValueError("La dirección proporcionada está vacía")
@@ -355,6 +356,7 @@ def supervisor_agent(state: Dict[str, Any]) -> Dict[str, Any]:
             prompt
             | llm.with_structured_output(routeResponse)
         )
+        
         result = supervisor_chain.invoke(state)
         return result
 
@@ -381,15 +383,23 @@ def supervisor_agent(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def agent_node(state, agent, name):
+
     try:
         result = agent.invoke(state)
+        print(f"agent_node result : ",result)
 
         if name == 'get_address_info':
             try:
-                # Extraer el ToolMessage directamente del resultado, asumiendo que siempre es el tercer elemento
-                tool_message = result["messages"][2]  # Índice 2 porque es el tercer elemento
-                # Retornar el ToolMessage en el formato deseado
-                return {"messages": [HumanMessage(content=tool_message.content, name=tool_message.name)]}
+                if len(result["messages"]) >= 3:
+                    # Extraer el ToolMessage directamente del resultado, asumiendo que el tercer mensaje existe
+                    tool_message = result["messages"][2]  # Índice 2 porque es el tercer elemento
+                    print(f"agent_node tool_message=result.mesage[2]: {tool_message}")
+                    return {"messages": [HumanMessage(content=tool_message.content, name=tool_message.name)]}
+                else:
+                    # Si no hay suficientes mensajes, devolver un error adecuado
+                    print(f"Error: No hay suficientes mensajes en el resultado. Mensajes recibidos: {len(result['messages'])}")
+                    return {"messages": [HumanMessage(content="No se encontró suficiente información para procesar la dirección.", name=name)]}
+        
             except IndexError:
                 write_log(f"Error: No se encontró el ToolMessage esperado en get_address_info. Resultado: {result}")
                 return {"messages": [HumanMessage(content="Error al procesar la información de dirección.", name=name)]}
@@ -450,6 +460,7 @@ all_messages = []  # Lista para almacenar todos los mensajes
 @app.get("/")
 def index(pregunta: str):
     # Usa la variable `pregunta` como entrada para el flujo de trabajo
+    print(f"entrada de pregunta a api : " ,pregunta)
     consulta1 = pregunta
 
     final_response = None  # Variable para almacenar la respuesta final
@@ -468,47 +479,103 @@ def index(pregunta: str):
                 get_address_info_response = s['get_address_info']['messages'][0].content
 #                write_log(f"get_address_info_response en final_response {get_address_info_response}")
                 final_response=get_address_info_response
-                desescaped_content = json.loads(final_response)
-                resultado = {
+                try:
+                    desescaped_content = json.loads(final_response)
+                    resultado = {
                     "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
-                    "response": {
-                        "order": 1,
-                        "type": "map",
-                    "content": [desescaped_content]}
-                }
+                    "response": [
+                        {
+                            "order": 1,
+                            "type": "map",
+                            "content": desescaped_content
+                        }
+                    ]
+                    }
+                except:
+                    desescaped_content =final_response
+                    resultado = {
+                    "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
+                    "response": [
+                        {
+                            "order": 1,
+                            "type": "text",
+                            "content": desescaped_content
+                        }
+                    ]
+                    }
+
+
+
+
+                
                 final_response = resultado
 
             elif 'messages' in s.get('get_medication_info', {}):
                 final_response = s['get_medication_info']['messages'][0].content
+
                 resultado = {
                     "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
-                    "response": {
-                        "order": 1,
-                        "type": "text",
-                    "content": final_response}
+                    "response": [
+                        {
+                            "order": 1,
+                            "type": "text",
+                            "content": final_response
+                        }
+                    ]
                 }
                 final_response = resultado
 
+
+
             elif 'messages' in s.get('get_last_address', {}):
                 final_response =  "Su consulta no está en el contexto o ámbito de mi asistencia , favor replantee su consulta."
+
                 resultado = {
                     "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
-                    "response": {
-                        "order": 1,
-                        "type": "text",
-                    "content": final_response}
-                }                
+                    "response": [
+                        {
+                            "order": 1,
+                            "type": "text",
+                            "content": final_response
+                        }
+                    ]
+                }
+
                 final_response = resultado
+
 
 
 
     if final_response:
+        # Si el resultado es un diccionario, lo convertimos en un array con ese diccionario dentro
         if isinstance(final_response, dict):
             print("final_response es un diccionario")
+#            final_response = [final_response]  # Convertir el diccionario en una lista de un solo objeto
+            final_response = final_response  # Convertir el diccionario en una lista de un solo objeto
         else:
             print("final_response es una cadena JSON")
-            # Solo convertimos si no es ya un diccionario
-            final_response = json.loads(final_response)
-        
+            try:
+                # Verificar si la cadena no está vacía antes de intentar decodificarla
+                if final_response.strip():  # Verificar que no esté vacía
+                    # Intentamos cargarlo como JSON y luego asegurarnos de que sea una lista
+                    final_response = json.loads(final_response)
+                    if isinstance(final_response, dict):
+                        final_response = final_response  # Convertir el diccionario en una lista
+                    elif not isinstance(final_response, list):
+                        raise ValueError("final_response no es un array o diccionario válido")
+                else:
+                    # Si la cadena está vacía, lanzar una excepción o manejar el caso adecuadamente
+                    raise ValueError("final_response está vacío o no es JSON válido")
+            except json.JSONDecodeError as e:
+                print(f"Error al decodificar JSON: {e}")
+                return JSONResponse(content={"error": "Formato JSON inválido"}, status_code=400)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return JSONResponse(content={"error": str(e)}, status_code=400)
+
+        # Devolver el array de objetos
         #return JSONResponse(content=final_response, status_code=200)
-        return JSONResponse(content=final_response)
+        return final_response
+    else:
+        # Manejar el caso donde final_response es None o vacío
+        return JSONResponse(content={"error": "final_response es None o vacío"}, status_code=400)
