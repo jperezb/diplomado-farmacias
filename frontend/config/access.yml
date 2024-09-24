@@ -1,0 +1,16 @@
+credentials:
+  usernames:
+    jose:
+      email: jose@goodmeal.app
+      failed_login_attempts: 0
+      logged_in: False 
+      name: Jose Castro
+      password: "$2b$12$xcT7dljXnh7z8jISV6Qpd.RRX.7O3Mt/Wd1n58euIHWioXkNVqfnG"
+      uuid: "91d2cfd3-0fd4-4b8a-aaed-8e83d5c2b2ca"
+cookie:
+  expiry_days: 10
+  key: internal_test_dc
+  name: internal_test_dc
+pre-authorized:
+  emails:
+  - melsby@gmail.com
