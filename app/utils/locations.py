@@ -89,6 +89,7 @@ def farmacias_cercanas(user_location, data, top_n=3):
                 "lat": float(farmacia["local_lat"]),
                 "lng": float(farmacia["local_lng"])
             },
+            "local_telefono": farmacia["local_telefono"],
             "funcionamiento_hora_apertura": farmacia["funcionamiento_hora_apertura"],
             "funcionamiento_hora_cierre": farmacia["funcionamiento_hora_cierre"],
             "distancia": round(distancia, 2)  # Agregando la distancia redondeada a 2 decimales
