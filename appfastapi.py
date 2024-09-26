@@ -169,7 +169,6 @@ def valida_medicamento2(consulta : str):
 
 
 def reformular_pregunta(consulta : str):
-    OPENAI_API_KEY = 'sk-proj-3aHAHM4UttTPhmTOckm3T3BlbkFJhBLiSE9apGgIjn9o1A2s'
     llm = ChatOpenAI(model="gpt-4o", temperature=0, openai_api_key=OPENAI_API_KEY)
 
     output_parser = CommaSeparatedListOutputParser()
@@ -245,7 +244,6 @@ def reformular_pregunta(consulta : str):
 
 
 def reformular_pregunta2(consulta : str):
-    OPENAI_API_KEY = 'sk-proj-3aHAHM4UttTPhmTOckm3T3BlbkFJhBLiSE9apGgIjn9o1A2s'
     llm = ChatOpenAI(model="gpt-4o", temperature=0, openai_api_key=OPENAI_API_KEY)
 
     output_parser = CommaSeparatedListOutputParser()
