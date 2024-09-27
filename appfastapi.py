@@ -42,8 +42,10 @@ QDRANT_URL = os.getenv('QDRANT_URL')
 QDRANT_API_KEY = os.getenv('QDRANT_API_KEY')
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
-# Redis
-REDIS_URL = 'redis://default:n7Uosxj6lK8YxdozSa9Owa9jFh21qYmO@redis-18595.c57.us-east-1-4.ec2.redns.redis-cloud.com:18595'
+#REDIS_URL = os.getenv('REDIS_URL')
+
+
+
 
 # LOGS
 class QueryRequest(BaseModel):
@@ -73,11 +75,12 @@ def format_history(messages):
     return formatted_history
 
 # Obtener todos los mensajes del historial
-HISTORY = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL).messages 
-formatted_history = format_history(HISTORY)   
+#HISTORY = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL).messages 
+
+#formatted_history = format_history(HISTORY)   
 #*print(f"history ",HISTORY)     
-#HISTORY = None
-#formatted_history = None
+HISTORY = None
+formatted_history = None
 # Inicialización de FastAPI
 app = FastAPI()
 
@@ -102,7 +105,7 @@ qdrant = QdrantVectorStore.from_documents(
 retriever = qdrant.as_retriever()
 
 ######
-# funciones framacias
+# funciones complementarias
 
 def valida_medicamento(consulta: str):
     print(consulta)
@@ -142,30 +145,6 @@ def valida_medicamento(consulta: str):
         # En caso de un resultado inesperado, asumimos que no es válido
         return 0
 
-def valida_medicamento2(consulta : str): 
-    print(consulta)
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, openai_api_key=OPENAI_API_KEY)
-
-    output_parser = CommaSeparatedListOutputParser()
-
-    template = """
-    revisa si el texto tiene en su contenido, algo que indique o haga referencia a  un medicamento, un efecto secundario, una droga , sitomas 
-    lo clasificas como valido como medicamento y retorna como resultado el valor 1, en caso contrato retorna resultado 0
-
-    Texto a analizar: {input_text}
-
-        """
-    
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | llm | output_parser
-
-    result = chain.invoke({
-        "input_text": consulta,
-        "format_instructions": output_parser.get_format_instructions()
-    })
-
-    return result
-
 
 
 def reformular_pregunta(consulta : str):
@@ -193,8 +172,6 @@ def reformular_pregunta(consulta : str):
 
     Tu tarea es analizar el siguiente texto  {input_text} y realizar las siguientes acciones:
 
-    
-
     1.1 Debes identificar que no necesariamente puede ser una pregunta explicita, basta con la mención de un medicamenteo, de un efecto secundario, efectos o síntomos.
     1.2 Si la pregunta contiene una mención clara a un medicamento , o a un efecto secundario o a una droga , no  reformules la pregunta y retorna la misma pregunta
     1.3 Identifica cualquier mención de medicamentos, incluyendo nombres genéricos y comerciales. Presta especial atención a medicamentos comunes como aspirina, paracetamol, ibuprofeno, omeprazol, y otros.
@@ -208,15 +185,12 @@ def reformular_pregunta(consulta : str):
     9. nunca debes responder precios o dosis de un medicamento
     10. En caso que quieras proponer más de una pregunta , sólo entrag una.
 
-
-
     Si en la consulta se menciona "acidez" y "antibióticos", considera preguntar sobre medicamentos que tratan la acidez y ejemplos de antibióticos, así como la posible relación entre antibióticos y acidez como efecto secundario.
 
     Texto a analizar: {input_text}
 
     Proporciona tu respuesta como una lista de preguntas reformuladas, separadas por comas.
    
-
     {format_instructions}
     """
 
@@ -239,79 +213,6 @@ def reformular_pregunta(consulta : str):
 
 
 
-
-
-
-
-def reformular_pregunta2(consulta : str):
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, openai_api_key=OPENAI_API_KEY)
-
-    output_parser = CommaSeparatedListOutputParser()
-
-    template = """
-
-    Eres un asistente farmacéutico especializado en identificar y extraer preguntas sobre medicamentos de textos complejos  o la sóla mención de un alcance respecto a medicamentos.
-
-    Recuerda que la sóla mención a un  medicamento que  pueden aparecer con diferentes nombres o marcas. Algunos ejemplos incluyen:
-    Aspirina, Amoxicilina, Lisinopril, Albuterol, Omeprazol, Levotiroxina, Simvastatina, Metformina, Ibuprofeno, Ciprofloxacina, Alprazolam, Ranitidina, Atorvastatina, Cefalexina, Paracetamol, Morfina, Risperidona, Sildenafil, Furosemida, Esomeprazol, Warfarina, Tramadol, Fluoxetina, Levofloxacina, Lorazepam, Losartán, Anfetamina, Citalopram, Metoprolol, Venlafaxina, Metilfenidato, Rosuvastatina, Bupropión, Ceftriaxona, Fentanilo, Hidroclorotiazida, Escitalopram, Amlodipina, Mirtazapina, Trazodona, Pravastatina, Aripiprazol, Amoxicilina-Clavulánico, Litio, Pregabalina, Mononitrato de isosorbida, Ezetimiba, Enalapril, Diazepam, Metotrexato, Cetirizina, Bromocriptina, Etinilestradiol / Levonorgestrel, Gabapentina, Naproxeno, Carvedilol, Clopidogrel, Ezetimiba / Simvastatina, Propionato de Fluticasona, Metronidazol, Duloxetina, Clortalidona, Cefuroxima, Alendronato, Levetiracetam, Pioglitazona, Ciclobenzaprina, Quetiapina, Paroxetina, Alopurinol, Etinilestradiol / Norgestimato, Valaciclovir, Clonazepam, Memantina, Insulina Glargina, Cloruro de Potasio, Tamoxifeno, Latanoprost, Loratadina, Bimatoprost, Lamotrigina, Rosiglitazona, Prednisona, Propionato de Fluticasona / Salmeterol, Hidroclorotiazida / Lisinopril, Ondansetrón, Amiodarona, Drospirenona / Etinilestradiol, Propranolol, Olanzapina, Amoxicilina / Clavulánico, Atenolol, Sertralina, Lovastatina, Enantyum, Ventolin, Cordiax
-
-    Puedes aceptar singular , prural, o faltas de ortografía .
-
-    También considera los siguientes síntomas o efectos, y asocia los medicamentos que los tratan:
-    Dolor de cabeza, Infecciones bacterianas, Hipertensión, Asma, Reflujo ácido, Trastorno de la tiroides, Hiperlipidemia, Diabetes tipo 2, Dolor e inflamación, Ansiedad, Úlceras gástricas, Dolor y fiebre, Dolor severo, Esquizofrenia, Disfunción eréctil, Edema, Trombosis, Dolor moderado a severo, Depresión, Trastorno por déficit de atención e hiperactividad, Trastorno bipolar, Dolor neuropático, Angina, Artritis reumatoide, Alergias, Enfermedad de Parkinson, Anticoncepción, Epilepsia, Enfermedad cardiovascular, Osteoporosis, Espasmos musculares, Hipotiroidismo, Gota, Infecciones por herpes, Enfermedad de Alzheimer, Diabetes, Hipopotasemia, Cáncer de mama, Glaucoma, Condiciones inflamatorias, Náuseas y vómitos, Arritmias, Coágulos sanguíneos
-
-    Además, si se menciona un tipo o clase de medicamento, asocia con ejemplos específicos de esa clase. Por ejemplo:
-    - Antibióticos: amoxicilina, ciprofloxacina, azitromicina
-    - Analgésicos: ibuprofeno, paracetamol, aspirina
-    - Antidepresivos: fluoxetina, sertralina, venlafaxina
-    - Antihipertensivos: lisinopril, amlodipina, losartán
-
-    Tu tarea es analizar el siguiente texto  {input_text} y realizar las siguientes acciones:
-
-    
-
-    1.1 Debes identificar que no necesariamente puede ser una pregunta explicita, basta con la mención de un medicamenteo, de un efecto secundario, efectos o síntomos.
-    1.2 Si la pregunta contiene una mención clara a un medicamento , o a un efecto secundario o a una droga , no  reformules la pregunta y retorna la misma pregunta
-    1.3 Identifica cualquier mención de medicamentos, incluyendo nombres genéricos y comerciales. Presta especial atención a medicamentos comunes como aspirina, paracetamol, ibuprofeno, omeprazol, y otros.
-    2. Puede que no exista una intención o consulta explicata sobre sobre el nombre, características, síntomas, indicaciones, usos o efectos de un medicamento , igualmente la parte que corresponde al contexto de medicamento extráela y reformúlala de manera clara y concisa.
-    3. Si no hay una pregunta clara, pero se menciona un medicamento, formula una pregunta general sobre sus usos, efectos o características.
-    4. Si se menciona un síntoma o condición médica, pregunta sobre los medicamentos que se usan comúnmente para tratarlo.
-    5. Si se menciona una clase de medicamentos, pregunta sobre ejemplos específicos de esa clase.
-    6. Si hay una combinación de síntomas y medicamentos, clarifica la relación entre ellos (por ejemplo, si el medicamento causa el síntoma o lo trata).
-    7. Ignora cualquier información no relacionada con medicamentos o condiciones médicas.
-    8. Si no hay menciones de medicamentos o preguntas relacionadas, responde con "No hay consultas sobre medicamentos".
-    9. nunca debes responder precios o dosis de un medicamento
-    10. En caso que quieras proponer más de una pregunta , sólo entrag una.
-
-
-
-    Si en la consulta se menciona "acidez" y "antibióticos", considera preguntar sobre medicamentos que tratan la acidez y ejemplos de antibióticos, así como la posible relación entre antibióticos y acidez como efecto secundario.
-
-    Texto a analizar: {input_text}
-
-    Proporciona tu respuesta como una lista de preguntas reformuladas, separadas por comas.
-    Si no hay preguntas relevantes, solo incluye "No hay consultas sobre medicamentos" en la lista.
-
-    {format_instructions}
-    """
-
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | llm | output_parser
-
-    result = chain.invoke({
-        "input_text": consulta,
-        "format_instructions": output_parser.get_format_instructions()
-    })
-    print(f"reformular_pregunta result :",result)
-    # Si solo hay una pregunta, devuelve esa pregunta como string
-    if len(result) == 1:
-        return result[0]
-    # Si hay múltiples preguntas, devuelve la lista de preguntas
-    else:
-        return result
-
-
-
 def get_farmacias_turno(question: QueryRequest):
     """API endpoint para obtener los datos de locales de turnos."""
     
@@ -320,6 +221,7 @@ def get_farmacias_turno(question: QueryRequest):
         # Función para escribir comentarios en el archivo de log
         
         coordinates = get_coordinates(question.input)
+        print(f"get_farmacias_turno - coordinates :",coordinates)
         
 
         # Obtener la fecha formateada
@@ -365,12 +267,12 @@ def get_farmacias_turno(question: QueryRequest):
 # Define tools
 @tool
 def get_address_info(address01: str)  -> Optional[HumanMessage]:
-    """Obtiene información sobre la dirección que se consulta explícitamente."""
+    """Obtiene información sobre la dirección que se consulta explícitamente.
+    Sino encuentras información para la direcicón consultada, debes indicar que No enontramos información de localizaciónde farmacias para la consulta reaizada, favor complementar dirección.
+    """
     
-    global j
-    
-    j=j+1
 
+    print(f"get_address_info address01 : ",address01)
     try:
         if not address01.strip():
             raise ValueError("La dirección proporcionada está vacía")
@@ -379,19 +281,18 @@ def get_address_info(address01: str)  -> Optional[HumanMessage]:
 
         # Corregir la clase QueryRequest y su uso
         query2 = QueryRequest(input=last_address_queried)
-        
+        print(f"get_address_info query2 : ",query2)
         try:
             respuesta = get_farmacias_turno(query2)
         except Exception as turno_error:
             logging.error(f"Error al obtener farmacias de turno para {address01}: {str(turno_error)}")
-            return HumanMessage(content=f"Lo siento, hubo un problema al buscar farmacias de turno para la dirección: {address01}. Por favor, intente nuevamente más tarde.")
+            return HumanMessage(content="Lo siento, no se encontró información de farmacias para la dirección consultada. Por favor, intente nuevamente complementando dirección.")
 
         if not respuesta:
             logging.warning(f"No se encontró información de farmacias para la dirección: {address01}")
-            return HumanMessage(content=f"Lo siento, no se encontró información de farmacias para la dirección: {address01}")
+            return HumanMessage(content="Lo siento, no se encontró información de farmacias para la dirección consultada . . Por favor, intente nuevamente complementando dirección.")
 
         return respuesta
-
 
     except ValueError as ve:
         error_msg = f"Error de valor en get_address_info: {str(ve)}"
@@ -405,7 +306,9 @@ def get_address_info(address01: str)  -> Optional[HumanMessage]:
 
 @tool
 def get_medication_info(medication: str) -> Optional[HumanMessage]:
-    """Obtiene información sobre un medicamento."""
+    """Obtiene información sobre un medicamento.
+    Si solicita una recomendación de un medicamento para un sintoma o enfermedad , debes indicar que no podemos dar indicaciones de este tipo, consulte a su médico.
+    """
 
     # Definir el prompt
     prompt_qd = ChatPromptTemplate.from_template("""
@@ -451,7 +354,7 @@ def get_medication_info(medication: str) -> Optional[HumanMessage]:
         context_text = " ".join([doc.page_content for doc in relevant_docs])
 
         # Formatear el historial
-        #*formatted_history = format_history(HISTORY)        
+        #formatted_history = format_history(HISTORY)        
         
         # Ejecutar la cadena y obtener la respuesta
         try:
@@ -476,20 +379,21 @@ def get_medication_info(medication: str) -> Optional[HumanMessage]:
         return HumanMessage(content="Lo siento, ocurrió un error inesperado al procesar su solicitud.")
 
 
-#def get_last_address(address: str) -> str:
 
 
 @tool
-def get_last_address(address01 : str) -> str:
-    """Indica que la consulta no está dentro del ámbito de asistencia."""
-    if not address01.strip():
+def get_last_option(opcion01 : str) -> str:
+    """función creada para procesar las consultas que no cumplan con sonsultas de medicamentos ni direcciones de farmacias
+    No calcules ni proceses nada , sólo responder La consulta  no está en el contexto de mi asistencia    , replantee su consulta.
+    """
+
+    if not opcion01.strip():
         print(f"get_last_address El nombre address01  está vacío")
-    print(f"entro a  get_last_address : address = {address01}")
-    return f"la consulta  {address01}  no está en el contexto de mi asistencia , favor replantee su consulta"
+    return f"la consulta  {opcion01}  no está en el contexto de mi asistencia , favor replantee su consulta"
 
 
 # Define tool options
-options = ["FINISH", "get_address_info", "get_medication_info", "get_last_address"]
+options = ["FINISH", "get_address_info", "get_medication_info", "get_last_option"]
 
 # Create a dynamic model using `create_model` from Pydantic
 routeResponse = create_model(
@@ -498,7 +402,9 @@ routeResponse = create_model(
 )
 
 # List of members (tools)
-members = ["get_address_info", "get_medication_info", "get_last_address"]
+members = ["get_address_info", "get_medication_info", "get_last_option"]
+
+
 
 system_prompt = ("""Eres un supervisor encargado de gestionar una conversación entre las siguientes tools: {members}. 
     Dada la solicitud del usuario a continuación, responde con el tool que debe actuar a continuación. Cada tool realizará una tarea y responderá con sus resultados y estado.
@@ -512,9 +418,12 @@ system_prompt = ("""Eres un supervisor encargado de gestionar una conversación 
     2. **Si la pregunta está relacionada con cualquier aspecto o dimensión de los medicamentos** (por ejemplo, alternativas de medicamentos, efectos secundarios, indicaciones, dosificación, interacciones, etc.), selecciona 'get_medication_info'. 
     Esto incluye cualquier contexto médico relacionado con el propósito de un medicamento, administración, efectos secundarios, contraindicaciones u otros detalles farmacológicos. Responde en español.
 
-    3. **Para cualquier otro tipo de consulta** que no caiga en las dos categorías anteriores, selecciona 'get_last_address'. 
+    3. ** En caso que exista una consulta que no se epue resuelta por 'get_address_info' o por 'get_medication_info', siempre enviala a get_last_option , 
+    a pesar que no tenga nada que ver con el nombre de 'get_last_option', no des sentido 'get_last_option'.
     Esto incluye cualquier pregunta fuera del ámbito de medicamentos o direcciones, como consultas sobre la capital de un país, matemáticas o cualquier otro campo no relacionado. 
-
+    
+    Un ejemplo para este punto 3 para que se envíe a 'get_last_option' es : tengo un ulce me dioron 2 ,cuantos tengo
+               
     Si no entiendes la pregunta, solicita más información indicando: 'Necesito más información para poder asistirte.'
     Recuerda, eres un asistente especializado en proporcionar información sobre medicamentos, sus diversas dimensiones médicas, y las ubicaciones de farmacias en base a una dirección dada. 
     Debes asistir solo dentro de estos contextos específicos.
@@ -522,7 +431,9 @@ system_prompt = ("""Eres un supervisor encargado de gestionar una conversación 
     Todas las respuestas y comunicaciones deben ser en español.
     """)
 
-# Define supervisor prompt
+
+
+
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", system_prompt),
@@ -538,18 +449,24 @@ prompt = ChatPromptTemplate.from_messages(
 # Initialize the model
 llm = ChatOpenAI(model="gpt-4o", openai_api_key=openai_api_key)
 
+
+
+
 def supervisor_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    
-    print(f"supervisor_agent state",state)
     global j
-    j=j+1
+
+    
+
     try:
         supervisor_chain = (
             prompt
             | llm.with_structured_output(routeResponse)
         )
-        
         result = supervisor_chain.invoke(state)
+
+        if isinstance(result, dict):
+            for key, value in result.items():
+                print(f"supervisor_agent: {key} = {value}")
         return result
 
 
@@ -575,6 +492,10 @@ def supervisor_agent(state: Dict[str, Any]) -> Dict[str, Any]:
 # Define agent node function
 def agent_node(state, agent, name):
     global j
+    print(f"agent_node state : ",state)
+    print(f"agent_node agent : ",agent)
+    print(f"agent_node name : ",name)
+
     j=j+1
 
     try:
@@ -610,12 +531,12 @@ def agent_node(state, agent, name):
 # Initialize tool agents
 address_agent = create_react_agent(llm, tools=[get_address_info])
 medication_agent = create_react_agent(llm, tools=[get_medication_info])
-last_address_agent = create_react_agent(llm, tools=[get_last_address])
+last_address_agent = create_react_agent(llm, tools=[get_last_option])
 
 # Define agent nodes for each tool
 address_node = functools.partial(agent_node, agent=address_agent, name="get_address_info")
 medication_node = functools.partial(agent_node, agent=medication_agent, name="get_medication_info")
-last_address_node = functools.partial(agent_node, agent=last_address_agent, name="get_last_address")
+last_address_node = functools.partial(agent_node, agent=last_address_agent, name="get_last_option")
 
 # Define workflow graph
 class AgentState(TypedDict):
@@ -625,7 +546,7 @@ class AgentState(TypedDict):
 workflow = StateGraph(AgentState)
 workflow.add_node("get_address_info", address_node)
 workflow.add_node("get_medication_info", medication_node)
-workflow.add_node("get_last_address", last_address_node)
+workflow.add_node("get_last_option", last_address_node)
 workflow.add_node("supervisor", supervisor_agent)
 
 # Set up edges for graph workflow
@@ -668,36 +589,28 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
 #def index(pregunta: str):
     i=0    
     j=1
-    print(f"pregunta : ",pregunta)
-    print(f"uuidclient : ",uuidclient)
     if not uuidclient:
         #uuidclient = str(uuid.uuid4())
         uuidclient = "c1b9b1e0-1f1b-11e7-93ae-92361f002671"
 
-    print(f"pregunta: {pregunta}")
-    print(f"uuidclient: {uuidclient}")
-    if location:
-        print(f"location: {location}")
 
-#    print(f"location : ",location)
-    if valida_medicamento(pregunta)==1:  
-        print(f"valida_medicamento pregunta =1 : ",pregunta)
-        pregunta2=reformular_pregunta(pregunta)
-        print(f"valida_medicamento pregunta2 =1 : ",pregunta2)
-        pregunta=pregunta2
+
+    if  valida_medicamento(pregunta)==1:  
+        pregunta=reformular_pregunta(pregunta)
+
     else:
         print(f"valida_medicamento =0 : ",pregunta)
     # Crear o cargar el historial de la conversación
-    history = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL)
+ #   history = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL)
 
-#    history = SimpleHistory()
+    history = SimpleHistory()
 
-#    history.add_message("")  # Mensaje vacío
-#    history.clear()
+    history.add_message("")  # Mensaje vacío
+    history.clear()
 
-#    HISTORY = history.messages
+    HISTORY = history.messages
 
-
+    print(f"index  jjj : ",j)
 # Obtener el historial de mensajes vacío
 
     # Agregar el mensaje del usuario al historial
@@ -715,10 +628,14 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
         #{"recursion_limit": 20}):
         {"recursion_limit": 100}):
         i=i+1
+        print(f"index  jjj : ",j)
+        j=j+1
         if "__end__" not in s:
             print("********** S **********")
             print(s)
             print("********** !S **********")
+            print(f"index  jjj : ",j)
+            j=j+1
 
             # Almacena la respuesta final de cada herramienta
             if 'messages' in s.get('get_address_info', {}):
@@ -728,7 +645,7 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
                 try:
                     desescaped_content = json.loads(final_response)
                     resultado = {
-                    "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
+                    "uuidclient": uuidclient,
                     "response": [
                         {
                             "order": 1,
@@ -740,8 +657,7 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
                 except:
                     desescaped_content =final_response
                     resultado = {
-#                    "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
-                    "uuid-client": uuidclient,
+                    "uuidclient": uuidclient,
 
                     "response": [
                         {
@@ -758,8 +674,7 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
                 final_response = s['get_medication_info']['messages'][0].content
 
                 resultado = {
-#                    "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
-                    "uuid-client": uuidclient,
+                    "uuidclient": uuidclient,
                     "response": [
                         {
                             "order": 1,
@@ -770,12 +685,11 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
                 }
                 final_response = resultado
 
-            elif 'messages' in s.get('get_last_address', {}):
-                final_response =  s['get_last_address']['messages'][0].content
+            elif 'messages' in s.get('get_last_option', {}):
+                final_response =  s['get_last_option']['messages'][0].content
 
                 resultado = {
-#                    "uuid-client": "c1b9b1e0-1f1b-11e7-93ae-92361f002671",
-                    "uuid-client": uuidclient,
+                    "uuidclient": uuidclient,
                     "response": [
                         {
                             "order": 1,
@@ -821,11 +735,9 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
                 print(f"Error: {e}")
                 return JSONResponse(content={"error": str(e)}, status_code=400)
 
-        # Devolver el array de objetos
-        #return JSONResponse(content=final_response, status_code=200)
 
         # Agregar la respuesta del AI al historial
-        history.add_ai_message(history_message)
+        #history.add_ai_message(history_message)
 
         return final_response
     else:
