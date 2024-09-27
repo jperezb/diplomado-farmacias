@@ -42,7 +42,7 @@ QDRANT_URL = os.getenv('QDRANT_URL')
 QDRANT_API_KEY = os.getenv('QDRANT_API_KEY')
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
-#REDIS_URL = os.getenv('REDIS_URL')
+REDIS_URL = os.getenv('REDIS_URL')
 
 
 
@@ -75,12 +75,10 @@ def format_history(messages):
     return formatted_history
 
 # Obtener todos los mensajes del historial
-#HISTORY = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL).messages 
+HISTORY = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL).messages 
 
-#formatted_history = format_history(HISTORY)   
+formatted_history = format_history(HISTORY)   
 #*print(f"history ",HISTORY)     
-HISTORY = None
-formatted_history = None
 # Inicialización de FastAPI
 app = FastAPI()
 
@@ -228,7 +226,8 @@ def get_farmacias_turno(question: QueryRequest):
         fecha_formateada = datetime.now().strftime("%Y-%m-%d")
         directorio = "files/"
         file_path = f"{directorio}{fecha_formateada}.txt"
-        file_path = 'doc/2024-08-31.txt'
+#        file_path = 'doc/2024-08-31.txt'
+        file_path = 'doc/farmaciasdeturno.txt'
         if os.path.exists(file_path):
             # Si el archivo existe, cargar los datos desde el archivo
             with open(file_path, "r", encoding='utf-8') as file:
@@ -354,7 +353,7 @@ def get_medication_info(medication: str) -> Optional[HumanMessage]:
         context_text = " ".join([doc.page_content for doc in relevant_docs])
 
         # Formatear el historial
-        #formatted_history = format_history(HISTORY)        
+        formatted_history = format_history(HISTORY)        
         
         # Ejecutar la cadena y obtener la respuesta
         try:
@@ -390,6 +389,39 @@ def get_last_option(opcion01 : str) -> str:
     if not opcion01.strip():
         print(f"get_last_address El nombre address01  está vacío")
     return f"la consulta  {opcion01}  no está en el contexto de mi asistencia , favor replantee su consulta"
+
+
+
+
+#@tool
+def revisor(consulta: str, respuesta: str) -> Dict[str, Any]:
+    """Evalúa si la respuesta satisface adecuadamente la consulta de medicamentos o direcciones de farmacias."""
+    prompt_revisor = ChatPromptTemplate.from_template("""
+    Eres un revisor especializado en evaluar respuestas sobre medicamentos y ubicaciones de farmacias.
+    
+    Consulta original: {consulta}
+    Respuesta proporcionada: {respuesta}
+    
+    Evalúa si la respuesta satisface adecuadamente la consulta en términos de relevancia, precisión y completitud.
+    Si la respuesta es satisfactoria, responde con "ACEPTAR".
+    Si la respuesta no es satisfactoria, responde con "RECHAZAR" y proporciona una breve explicación.
+    
+    Respuesta:
+    """)
+    
+    revisor_chain = prompt_revisor | llm
+    resultado = revisor_chain.invoke({"consulta": consulta, "respuesta": respuesta})
+    
+    # Asegura que el resultado contiene una decisión válida
+    if "ACEPTAR" in resultado.content:
+        return {"decision": "ACEPTAR"}
+    elif "RECHAZAR" in resultado.content:
+        return {"decision": "RECHAZAR", "explicacion": resultado.content}
+    else:
+        return {"decision": "REVISAR", "explicacion": "Respuesta del revisor no clara"}
+
+
+
 
 
 # Define tool options
@@ -453,9 +485,6 @@ llm = ChatOpenAI(model="gpt-4o", openai_api_key=openai_api_key)
 
 
 def supervisor_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    global j
-
-    
 
     try:
         supervisor_chain = (
@@ -491,12 +520,6 @@ def supervisor_agent(state: Dict[str, Any]) -> Dict[str, Any]:
 
 # Define agent node function
 def agent_node(state, agent, name):
-    global j
-    print(f"agent_node state : ",state)
-    print(f"agent_node agent : ",agent)
-    print(f"agent_node name : ",name)
-
-    j=j+1
 
     try:
         result = agent.invoke(state)
@@ -570,20 +593,10 @@ graph = workflow.compile()
 all_messages = []  # Lista para almacenar todos los mensajes
 j=0
 
-class SimpleHistory:
-    def __init__(self):
-        self.messages = []
-
-    def add_message(self, message):
-        self.messages.append(message)
-
-    def clear(self):
-        self.messages = []
 
 
 # Definir la ruta principal de FastAPI
 @app.get("/")
-#def index(uuidclient: str ,pregunta: str,location:str):
 def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[str] = None):
 
 #def index(pregunta: str):
@@ -593,28 +606,20 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
         #uuidclient = str(uuid.uuid4())
         uuidclient = "c1b9b1e0-1f1b-11e7-93ae-92361f002671"
 
-
-
     if  valida_medicamento(pregunta)==1:  
         pregunta=reformular_pregunta(pregunta)
 
     else:
         print(f"valida_medicamento =0 : ",pregunta)
     # Crear o cargar el historial de la conversación
- #   history = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL)
+    history = RedisChatMessageHistory(session_id = 'sesionDiplomado', url=REDIS_URL)
 
-    history = SimpleHistory()
 
-    history.add_message("")  # Mensaje vacío
-    history.clear()
 
-    HISTORY = history.messages
 
-    print(f"index  jjj : ",j)
-# Obtener el historial de mensajes vacío
 
     # Agregar el mensaje del usuario al historial
-#*    history.add_user_message(pregunta)
+    history.add_user_message(pregunta)
 
     # Obtener todos los mensajes del historial
     HISTORY = history.messages 
@@ -628,14 +633,11 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
         #{"recursion_limit": 20}):
         {"recursion_limit": 100}):
         i=i+1
-        print(f"index  jjj : ",j)
-        j=j+1
+
         if "__end__" not in s:
             print("********** S **********")
             print(s)
             print("********** !S **********")
-            print(f"index  jjj : ",j)
-            j=j+1
 
             # Almacena la respuesta final de cada herramienta
             if 'messages' in s.get('get_address_info', {}):
@@ -737,7 +739,7 @@ def index(pregunta: str, uuidclient: Optional[str] = None, location: Optional[st
 
 
         # Agregar la respuesta del AI al historial
-        #history.add_ai_message(history_message)
+        history.add_ai_message(history_message)
 
         return final_response
     else:
